@@ -75,6 +75,8 @@ tbody th { font-weight: 400; padding: 8px; }
 tbody td { text-align: right; padding: 8px; }
 tbody tr:last-child > * { border-bottom: 2px solid var(--ink); }
 tr.final { background: var(--panel); }
+tr.split > * { border-top: 1px solid var(--ink); }
+details summary { cursor: pointer; font-weight: 600; }
 tr.final th { font-weight: 700; }
 tr.final .mu { color: var(--accent-ink); font-weight: 700; }
 .mu { display: block; }
@@ -124,8 +126,9 @@ footer { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--rule);
 
 <div class="wrap">
 <nav class="toc" aria-label="Sections">
-  <a href="#poster">Poster</a><a href="#problem">Problem</a><a href="#pipeline">Pipeline</a><a href="#stage1">Stage 1</a>
-  <a href="#stage2">Stage 2</a><a href="#results">Results</a><a href="#limits">Limitations</a><a href="#methods">Methods</a><a href="#contact">Contact</a>
+  <a href="#poster">Poster</a><a href="#problem">Problem</a><a href="#data">Data</a><a href="#pipeline">Pipeline</a>
+  <a href="#c1">Representation</a><a href="#c2">When to stop</a><a href="#results">Results</a><a href="#limits">Limitations</a>
+  <a href="#methods">Methods</a><a href="#contact">Contact</a>
 </nav>
 
 <section id="poster">
@@ -139,46 +142,54 @@ footer { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--rule);
 <section id="problem">
   <h2><span class="n">02</span>The problem</h2>
   <div class="prose" style="display:grid;gap:14px">
-    <p>Mild cognitive impairment (MCI) is the stage where early detection helps most, and it is the hardest to pick up. Standard cognitive assessments are long and tiring for older adults. Speech is cheap to record, but existing speech models always listen to a fixed amount of it, even when the evidence was clear much earlier.</p>
-    <p>We treat screening as a sequential decision: after every 9 seconds of speech, a policy decides whether it has heard enough to make a call, or should keep listening.</p>
+    <p>Early screening for cognitive decline needs to be quick, cheap and repeatable. Standard cognitive tests are long and tiring, and speech models always listen to a fixed amount of audio, even when the evidence was clear much earlier. The challenge is sharpest for mild cognitive impairment (MCI), the earliest and hardest stage to detect.</p>
+    <p>We treat screening as a sequential decision: after every 9 seconds of speech, a policy decides whether it has heard enough to make a call, or should keep listening. The work has two parts: <strong>how to turn speech into good embeddings</strong> (the GRU is only the carrier), and <strong>how to design the reinforcement learning</strong> that decides when to stop.</p>
   </div>
   <div class="panel prose">
     <h3 style="margin-bottom:10px">Research questions</h3>
     <ul class="pts">
-      <li><strong>RQ1</strong> Can a GRU on Whisper speech embeddings classify HC / MCI / AD?</li>
-      <li><strong>RQ2</strong> Which class-imbalance fix helps MCI detection most?</li>
-      <li><strong>RQ3</strong> Can offline RL learn when to stop listening?</li>
+      <li><strong>RQ1</strong> How should audio be cut and pooled into Whisper embeddings?</li>
+      <li><strong>RQ2</strong> How should segments enter the GRU so that evidence accumulates?</li>
+      <li><strong>RQ3</strong> How should the reward and RL algorithm be designed to save speech but keep MCI detection?</li>
     </ul>
   </div>
 </section>
 
+<section id="data">
+  <h2><span class="n">03</span>Data and task</h2>
+  <p class="prose"><strong>Pitt Corpus, DementiaBank.</strong> Participants describe the Cookie Theft picture aloud (Goodglass &amp; Kaplan, Boston Diagnostic Aphasia Examination): a kitchen scene, about a minute of unscripted speech.</p>
+  <figure>
+    <div class="plate"><img src="img/fig_data_counts.png" alt="Participants and recordings per class: HC, MCI and AD" loading="lazy"></div>
+    <figcaption><strong>Cross-validation pool: 227 participants, 430 recordings.</strong> Participant-level stratified 5-fold CV; every result on this page is mean ± SD over the 5 folds.</figcaption>
+  </figure>
+</section>
+
 <section id="pipeline">
-  <h2><span class="n">03</span>Pipeline: GRU + Offline RL</h2>
+  <h2><span class="n">04</span>Pipeline: GRU + Offline RL</h2>
   <figure>
     <div class="plate"><img src="img/fig_pipeline.png" alt="Pipeline figure following one recording from waveform to Whisper embeddings, a two-layer GRU, class probabilities and the stopping decision" loading="lazy"></div>
-    <figcaption><strong>One real MCI recording from a validation fold.</strong> Speech is cut into 3-s segments and encoded by Whisper-medium (frozen). A 2-layer GRU (64 units) updates its class probabilities after every segment. Every 9 s, the offline RL policy chooses Continue or Stop. Here it stops at 18 s, once P(MCI) = 0.89, and the call is correct. The inset shows the gates inside one GRU step.</figcaption>
+    <figcaption><strong>One real MCI recording from a validation fold.</strong> Speech is cut into 3-s segments and encoded by Whisper-medium (frozen). A 2-layer GRU (64 units) updates its class probabilities after every segment. Every 9 s, the offline RL policy compares the Q-values of Continue and Stop and takes the higher one. Here it stops at 18 s, once P(MCI) = 0.89, and the call is correct. The inset shows the gates inside one GRU step.</figcaption>
   </figure>
   <p class="prose"><strong>Offline RL</strong> learns the stopping rule from recorded data only; it never interacts with patients. The final decision stays with a clinician.</p>
 </section>
 
-<section id="stage1">
-  <h2><span class="n">04</span>Stage 1: fixing class imbalance</h2>
+<section id="c1">
+  <h2><span class="n">05</span>Contribution 1: speech representation</h2>
+  <h3>How long should a segment be? (RQ1)</h3>
   <figure>
-    <div class="plate"><img src="img/fig_stage1_ablation.png" alt="Bar chart of MCI F1, recall and precision for ablations A1 to A7, with AUC markers" loading="lazy"></div>
-    <figcaption><strong>Class balancing lifts MCI F1 from 0.340 to 0.795, while AUC stays flat.</strong> The baseline could already rank MCI cases well; the problem was the decision rule, which class-balanced sampling fixes. Error bars: ±1 SD across folds.</figcaption>
+    <div class="plate"><img src="img/fig_seglen.png" alt="Segment lengths of 1, 3 and 5 seconds drawn on a waveform, with cross-validated AD vs HC accuracy for each" loading="lazy"></div>
+    <figcaption><strong>Best GRU setting for each segment length, out of 33 tried (AD vs HC). 1 s loses information; 3 s ties 5 s</strong> (0.734, 0.810 and 0.811). Each Whisper input is a 3-s segment with 2 s of left context; only the segment’s own frames are kept. Dot: mean over folds; line: ±1 SD.</figcaption>
   </figure>
-  <div class="tbl"><table>
-    <thead><tr><th>Ablation (5-fold CV, mean)</th><th>MCI F1</th><th>MCI recall</th><th>MCI precision</th><th>MCI AUC</th></tr></thead>
-    <tbody><tr><th scope="row">A1 Base</th><td>0.340</td><td>0.244</td><td>0.650</td><td>0.974</td></tr><tr class="final"><th scope="row">A2 Balanced</th><td>0.795</td><td>0.855</td><td>0.783</td><td>0.980</td></tr><tr><th scope="row">A3 MCI ×3</th><td>0.692</td><td>0.776</td><td>0.645</td><td>0.986</td></tr><tr><th scope="row">A4 Mixup</th><td>0.772</td><td>0.706</td><td>0.870</td><td>0.976</td></tr><tr><th scope="row">A5 +Contr.</th><td>0.688</td><td>0.565</td><td>0.927</td><td>0.980</td></tr><tr><th scope="row">A6 +Ord.</th><td>0.688</td><td>0.565</td><td>0.927</td><td>0.983</td></tr><tr><th scope="row">A7 +Both</th><td>0.751</td><td>0.637</td><td>0.920</td><td>0.976</td></tr></tbody>
-  </table></div>
+  <h3>Evidence has to accumulate (RQ2)</h3>
   <figure>
-    <div class="plate"><img src="img/fig_early_detection.png" alt="Accuracy and MCI F1 against seconds of speech heard" loading="lazy"></div>
-    <figcaption><strong>Accuracy plateaus by about 30 s, but MCI detection needs more speech.</strong> This is why a fixed cutoff is a poor rule, and why we learn when to stop.</figcaption>
+    <div class="plate"><img src="img/fig_accumulate.png" alt="Accuracy for one segment, a cumulative prefix and the whole recording, with and without context" loading="lazy"></div>
+    <figcaption><strong>Accumulating segments adds 9 points of accuracy</strong> (0.721 for one segment, 0.796 for a cumulative prefix, 0.813 for the whole recording). The 2 s of context helps single segments most (hollow dots: no context).</figcaption>
   </figure>
 </section>
 
-<section id="stage2">
-  <h2><span class="n">05</span>Stage 2: screening as optimal stopping</h2>
+<section id="c2">
+  <h2><span class="n">06</span>Contribution 2: when to stop (RQ3)</h2>
+  <h3>Screening as optimal stopping</h3>
   <figure>
     <div class="plate"><img src="img/fig_mdp.png" alt="Decision diagram of the stopping policy and a chart of the stop reward for the example recording" loading="lazy"></div>
     <figcaption><strong>For the example recording, the stop reward is highest at 18 s, exactly where the CQL policy stopped.</strong></figcaption>
@@ -189,25 +200,42 @@ footer { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--rule);
     <dt>Evidence</dt><dd><code>M<sub>t</sub> = max<sub>τ≤t</sub> (2 · max<sub>c</sub> p<sub>τ</sub>(c) − 1)</code><span class="g">best confidence so far</span></dd>
     <dt>Continue</dt><dd><code>r = M<sub>t+1</sub> − M<sub>t</sub> − 0.02</code><span class="g">gain if evidence grows, small cost per step</span></dd>
     <dt>Stop</dt><dd><code>r = w<sub>y</sub> · (1 − (t/H)²) · M<sub>t</sub> · (±1)</code><span class="g">wrong stops are clipped at 0; H = steps in the recording (mean 4.6)</span></dd>
-    <dt>Learner</dt><dd><code>Discrete CQL (d3rlpy)</code><span class="g">trained on class-balanced episodes; Discrete BCQ as comparison</span></dd>
   </dl>
+  <h3>Designing the reward</h3>
+  <figure>
+    <div class="plate"><img src="img/fig_reward_design.png" alt="Table-like figure: each reward term, the problem it fixes, and the metric without and with the term" loading="lazy"></div>
+    <figcaption><strong>Each reward term fixes one failure.</strong> For every cross-validation recording we find the step each reward version would pick as the best stop, then compare the version without a term to the full reward (higher is better). A per-class MCI weight was tried and dropped: MCI F1 moved within run-to-run noise, so we balance the training episodes instead.</figcaption>
+  </figure>
+  <h3>How the offline RL algorithms differ</h3>
+  <figure>
+    <div class="plate"><img src="img/fig_algorithms.png" alt="DQN, BCQ and CQL compared: Q-values for continue and stop at an early step, and why each does or does not fit our data" loading="lazy"></div>
+    <figcaption><strong>Same logged data, three ways to handle an action the data rarely shows</strong> (hatched: stop is rarely logged at early steps). The bars are an illustration; the numbers are 5-fold CV results. The DQN and BCQ explanations are our reading of the mechanism, consistent with the results but not tested separately.</figcaption>
+  </figure>
 </section>
 
 <section id="results">
-  <h2><span class="n">06</span>Results</h2>
-  <div class="tbl"><table><thead><tr><th>5-fold CV</th><th>MCI F1</th><th>MCI recall</th><th>MCI precision</th><th>HC F1</th><th>AD F1</th><th>Accuracy</th><th>Audio used</th></tr></thead><tbody><tr><th scope="row">GRU A2, full recording</th><td><span class="mu">0.795</span><span class="sd">±0.032</span></td><td><span class="mu">0.855</span><span class="sd">±0.166</span></td><td><span class="mu">0.783</span><span class="sd">±0.138</span></td><td><span class="mu">0.729</span><span class="sd">±0.066</span></td><td><span class="mu">0.782</span><span class="sd">±0.040</span></td><td><span class="mu">0.763</span><span class="sd">±0.045</span></td><td><span class="mu">100%</span><span class="sd">±0</span></td></tr><tr class="final"><th scope="row">GRU + Offline RL (CQL)<span class="tag">final</span></th><td><span class="mu">0.746</span><span class="sd">±0.107</span></td><td><span class="mu">0.716</span><span class="sd">±0.125</span></td><td><span class="mu">0.796</span><span class="sd">±0.156</span></td><td><span class="mu">0.769</span><span class="sd">±0.066</span></td><td><span class="mu">0.810</span><span class="sd">±0.037</span></td><td><span class="mu">0.788</span><span class="sd">±0.053</span></td><td><span class="mu">63%</span><span class="sd">±3</span></td></tr><tr><th scope="row">BCQ, balanced</th><td><span class="mu">0.685</span><span class="sd">±0.140</span></td><td><span class="mu">0.622</span><span class="sd">±0.152</span></td><td><span class="mu">0.806</span><span class="sd">±0.202</span></td><td><span class="mu">0.740</span><span class="sd">±0.061</span></td><td><span class="mu">0.800</span><span class="sd">±0.047</span></td><td><span class="mu">0.767</span><span class="sd">±0.055</span></td><td><span class="mu">56%</span><span class="sd">±4</span></td></tr><tr><th scope="row">CQL, original data</th><td><span class="mu">0.745</span><span class="sd">±0.126</span></td><td><span class="mu">0.756</span><span class="sd">±0.110</span></td><td><span class="mu">0.744</span><span class="sd">±0.173</span></td><td><span class="mu">0.756</span><span class="sd">±0.085</span></td><td><span class="mu">0.804</span><span class="sd">±0.052</span></td><td><span class="mu">0.778</span><span class="sd">±0.070</span></td><td><span class="mu">67%</span><span class="sd">±4</span></td></tr></tbody></table></div>
+  <h2><span class="n">07</span>Results</h2>
+  <div class="tbl"><table><thead><tr><th>5-fold CV</th><th>MCI F1</th><th>MCI recall</th><th>Accuracy</th><th>Audio used</th></tr></thead><tbody><tr><th scope="row">GRU, baseline (A1)</th><td><span class="mu">0.340</span><span class="sd">±0.234</span></td><td><span class="mu">0.244</span><span class="sd">±0.179</span></td><td><span class="mu">0.742</span><span class="sd">±0.043</span></td><td><span class="mu">100%</span></td></tr><tr><th scope="row">GRU, class-balanced (A2)</th><td><span class="mu">0.795</span><span class="sd">±0.032</span></td><td><span class="mu">0.855</span><span class="sd">±0.166</span></td><td><span class="mu">0.763</span><span class="sd">±0.045</span></td><td><span class="mu">100%</span></td></tr><tr class="split"><th scope="row">+ threshold rule</th><td><span class="mu">0.743</span><span class="sd">±0.089</span></td><td><span class="mu">0.798</span><span class="sd">±0.152</span></td><td><span class="mu">0.766</span><span class="sd">±0.054</span></td><td><span class="mu">79%</span><span class="sd">±5</span></td></tr><tr><th scope="row">+ offline DQN</th><td><span class="mu">0.726</span><span class="sd">±0.114</span></td><td><span class="mu">0.687</span><span class="sd">±0.098</span></td><td><span class="mu">0.771</span><span class="sd">±0.052</span></td><td><span class="mu">58%</span><span class="sd">±4</span></td></tr><tr><th scope="row">+ offline BCQ</th><td><span class="mu">0.685</span><span class="sd">±0.140</span></td><td><span class="mu">0.622</span><span class="sd">±0.152</span></td><td><span class="mu">0.767</span><span class="sd">±0.055</span></td><td><span class="mu">56%</span><span class="sd">±4</span></td></tr><tr class="final"><th scope="row">+ offline CQL (final)<span class="tag">final</span></th><td><span class="mu">0.746</span><span class="sd">±0.107</span></td><td><span class="mu">0.716</span><span class="sd">±0.125</span></td><td><span class="mu">0.788</span><span class="sd">±0.053</span></td><td><span class="mu">63%</span><span class="sd">±3</span></td></tr></tbody></table></div>
   <p class="eyebrow">Mean over 5 participant-level folds, ±1 SD below. Audio used = share of each recording heard before the decision.</p>
+  <p class="prose">Class balancing (A1 to A2) is the key fix for MCI; A3–A7 (oversampling, mixup, extra losses) did not do better. The stopping rules below the line are all built on A2.</p>
+  <details class="prose">
+    <summary>All Stage 1 ablations (A1–A7)</summary>
+    <div class="tbl" style="margin-top:12px"><table>
+      <thead><tr><th>Ablation (5-fold CV, mean)</th><th>MCI F1</th><th>MCI recall</th><th>MCI precision</th><th>MCI AUC</th></tr></thead>
+      <tbody><tr><th scope="row">A1 Base</th><td>0.340</td><td>0.244</td><td>0.650</td><td>0.974</td></tr><tr class="final"><th scope="row">A2 Balanced</th><td>0.795</td><td>0.855</td><td>0.783</td><td>0.980</td></tr><tr><th scope="row">A3 MCI ×3</th><td>0.692</td><td>0.776</td><td>0.645</td><td>0.986</td></tr><tr><th scope="row">A4 Mixup</th><td>0.772</td><td>0.706</td><td>0.870</td><td>0.976</td></tr><tr><th scope="row">A5 +Contr.</th><td>0.688</td><td>0.565</td><td>0.927</td><td>0.980</td></tr><tr><th scope="row">A6 +Ord.</th><td>0.688</td><td>0.565</td><td>0.927</td><td>0.983</td></tr><tr><th scope="row">A7 +Both</th><td>0.751</td><td>0.637</td><td>0.920</td><td>0.976</td></tr></tbody>
+    </table></div>
+  </details>
   <figure>
     <div class="plate"><img src="img/fig_efficiency.png" alt="MCI F1 against percent of audio used, for each policy and a fixed-cutoff baseline" loading="lazy"></div>
     <figcaption><strong>At the same amount of speech, learned stopping beats a fixed cutoff.</strong> A GRU that always stops after 18 s hears 58% of each recording and reaches MCI F1 0.54; GRU + Offline RL hears 63% and reaches 0.75.</figcaption>
   </figure>
   <div class="two">
     <div class="panel accent">
-      <h3 style="margin-bottom:10px">Key takeaways</h3>
+      <h3 style="margin-bottom:10px">Takeaways</h3>
       <ul class="pts">
-        <li><strong>Class balancing</strong> is the key fix for MCI detection.</li>
-        <li>GRU + Offline RL hears <strong>37% less speech</strong>, at a small cost in MCI F1.</li>
-        <li><strong>When to stop</strong> is a learnable part of screening.</li>
+        <li><strong>Representation:</strong> 3–5 s segments, accumulated (+9 points).</li>
+        <li><strong>Stopping:</strong> offline RL hears 63% of the audio at 0.788 accuracy.</li>
+        <li><strong>Design:</strong> each reward term fixes one failure; conservative CQL beats DQN and BCQ.</li>
       </ul>
     </div>
     <div class="panel">
@@ -222,44 +250,43 @@ footer { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--rule);
 </section>
 
 <section id="limits">
-  <h2><span class="n">07</span>Limitations and next steps</h2>
+  <h2><span class="n">08</span>Limitations and next steps</h2>
   <ul class="pts prose">
     <li><strong>Small MCI sample:</strong> 14 participants and 32 recordings in the cross-validation pool.</li>
     <li><strong>Large fold-to-fold variance:</strong> MCI F1 SD 0.107 for the RL policy vs 0.032 for the full-length GRU.</li>
     <li>Stopping early <strong>lowers MCI recall</strong> (0.72 vs 0.86 at full length).</li>
+    <li>The segmentation study (Contribution 1) is on <strong>AD vs HC only</strong>.</li>
     <li>MCI recordings are about <strong>2× longer</strong> than HC recordings (69 s vs 36 s), so recording length may act as a cue.</li>
     <li>Single corpus and task. <strong>Next:</strong> external validation on independent corpora (PROCESS, ADNI4, WRAP).</li>
   </ul>
 </section>
 
 <section id="methods">
-  <h2><span class="n">08</span>Methods in brief</h2>
-  <figure>
-    <div class="plate"><img src="img/fig_data_counts.png" alt="Participants and recordings per class" loading="lazy"></div>
-    <figcaption><strong>Pitt Corpus (DementiaBank), Cookie Theft picture description.</strong> Cross-validation pool: 227 participants, 430 recordings.</figcaption>
-  </figure>
+  <h2><span class="n">09</span>Methods in brief</h2>
   <ul class="pts prose">
-    <li><strong>Audio:</strong> 16 kHz, peak-normalised, cut into non-overlapping 3-s segments. Whisper-medium sees each segment with 2 s of left context.</li>
+    <li><strong>Audio:</strong> 16 kHz, peak-normalised, cut into non-overlapping 3-s segments. Whisper-medium sees each segment with 2 s of left context; only the segment’s own frames are kept.</li>
     <li><strong>Features:</strong> 1024-d mean-pooled Whisper embedding + its first difference = 2048-d per step.</li>
     <li><strong>GRU:</strong> 2 layers, 64 units, dropout 0.3, a 3-class head at every step, trained with class-balanced sampling (A2).</li>
+    <li><strong>Offline RL:</strong> d3rlpy; Discrete CQL (α = 0.1, final), Discrete BCQ and DQN, each trained for 5,000 steps (learning rate 10<sup>−4</sup>, γ = 0.99) on class-balanced episodes. Episodes come from a randomized-threshold behaviour policy with 15% random actions.</li>
     <li><strong>Evaluation:</strong> participant-level stratified 5-fold CV. Each fold’s RL policy uses that fold’s own frozen GRU, so no held-out participant is seen during training.</li>
     <li><strong>Standard deviations</strong> are sample SDs (ddof = 1) across the 5 folds.</li>
   </ul>
 </section>
 
 <section id="refs">
-  <h2><span class="n">09</span>References</h2>
+  <h2><span class="n">10</span>References</h2>
   <ol class="refs prose">
     <li>Radford A, et al. Robust speech recognition via large-scale weak supervision (Whisper). ICML 2023.</li>
     <li>Becker JT, et al. The natural history of Alzheimer’s disease: description of study cohort and accuracy of diagnosis. Arch Neurol 1994.</li>
     <li>Fujimoto S, Conti E, Ghavamzadeh M, Pineau J. Benchmarking batch deep reinforcement learning algorithms. arXiv 2019.</li>
     <li>Kumar A, Zhou A, Tucker G, Levine S. Conservative Q-learning for offline reinforcement learning. NeurIPS 2020.</li>
     <li>Seno T, Imai M. d3rlpy: an offline deep reinforcement learning library. JMLR 2022.</li>
+    <li>Mnih V, et al. Human-level control through deep reinforcement learning (DQN). Nature 2015.</li>
   </ol>
 </section>
 
 <section id="contact">
-  <h2><span class="n">10</span>Contact</h2>
+  <h2><span class="n">11</span>Contact</h2>
   <div class="contact">
     <code id="email">xuan.wang@austin.utexas.edu</code>
     <button type="button" id="copyEmail">Copy email</button>
