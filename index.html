@@ -157,7 +157,13 @@ footer { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--rule);
 
 <section id="data">
   <h2><span class="n">03</span>Data and task</h2>
-  <p class="prose"><strong>Pitt Corpus, DementiaBank.</strong> Participants describe the Cookie Theft picture aloud (Goodglass &amp; Kaplan, Boston Diagnostic Aphasia Examination): a kitchen scene, about a minute of unscripted speech.</p>
+  <div class="two" style="align-items:center">
+    <figure>
+      <div class="plate"><img src="img/cookie_theft.png" alt="The Cookie Theft picture: a kitchen scene with a boy on a stool taking cookies and a woman washing dishes as the sink overflows" loading="lazy"></div>
+      <figcaption>Picture: Goodglass &amp; Kaplan, Boston Diagnostic Aphasia Examination.</figcaption>
+    </figure>
+    <p><strong>Pitt Corpus, DementiaBank.</strong> Participants describe the Cookie Theft picture aloud: a kitchen scene, about a minute of unscripted speech.</p>
+  </div>
   <figure>
     <div class="plate"><img src="img/fig_data_counts.png" alt="Participants and recordings per class: HC, MCI and AD" loading="lazy"></div>
     <figcaption><strong>Cross-validation pool: 227 participants, 430 recordings.</strong> Participant-level stratified 5-fold CV; every result on this page is mean ± SD over the 5 folds.</figcaption>
@@ -225,10 +231,6 @@ footer { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--rule);
       <tbody><tr><th scope="row">A1 Base</th><td>0.340</td><td>0.244</td><td>0.650</td><td>0.974</td></tr><tr class="final"><th scope="row">A2 Balanced</th><td>0.795</td><td>0.855</td><td>0.783</td><td>0.980</td></tr><tr><th scope="row">A3 MCI ×3</th><td>0.692</td><td>0.776</td><td>0.645</td><td>0.986</td></tr><tr><th scope="row">A4 Mixup</th><td>0.772</td><td>0.706</td><td>0.870</td><td>0.976</td></tr><tr><th scope="row">A5 +Contr.</th><td>0.688</td><td>0.565</td><td>0.927</td><td>0.980</td></tr><tr><th scope="row">A6 +Ord.</th><td>0.688</td><td>0.565</td><td>0.927</td><td>0.983</td></tr><tr><th scope="row">A7 +Both</th><td>0.751</td><td>0.637</td><td>0.920</td><td>0.976</td></tr></tbody>
     </table></div>
   </details>
-  <figure>
-    <div class="plate"><img src="img/fig_efficiency.png" alt="MCI F1 against percent of audio used, for each policy and a fixed-cutoff baseline" loading="lazy"></div>
-    <figcaption><strong>At the same amount of speech, learned stopping beats a fixed cutoff.</strong> A GRU that always stops after 18 s hears 58% of each recording and reaches MCI F1 0.54; GRU + Offline RL hears 63% and reaches 0.75.</figcaption>
-  </figure>
   <div class="two">
     <div class="panel accent">
       <h3 style="margin-bottom:10px">Takeaways</h3>
